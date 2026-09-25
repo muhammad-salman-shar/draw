@@ -82,7 +82,7 @@ fun ColorWheelDialog(
                             .pointerInput(Unit) {
                                 detectTapGestures { offset ->
                                     val c = Offset(size.width / 2f, size.height / 2f)
-                                    val r = size.minDimension / 2f
+                                    val r = minOf(size.width, size.height).toFloat() / 2f
                                     val dx = offset.x - c.x
                                     val dy = offset.y - c.y
                                     val dist = hypot(dx, dy)
@@ -96,7 +96,7 @@ fun ColorWheelDialog(
                                 detectDragGestures(
                                     onDragStart = { offset ->
                                         val c = Offset(size.width / 2f, size.height / 2f)
-                                        val r = size.minDimension / 2f
+                                        val r = minOf(size.width, size.height).toFloat() / 2f
                                         val dx = offset.x - c.x
                                         val dy = offset.y - c.y
                                         val dist = hypot(dx, dy)
@@ -107,7 +107,7 @@ fun ColorWheelDialog(
                                     },
                                     onDrag = { change, _ ->
                                         val c = Offset(size.width / 2f, size.height / 2f)
-                                        val r = size.minDimension / 2f
+                                        val r = minOf(size.width, size.height).toFloat() / 2f
                                         val dx = change.position.x - c.x
                                         val dy = change.position.y - c.y
                                         val dist = hypot(dx, dy)
@@ -120,7 +120,7 @@ fun ColorWheelDialog(
                                 )
                             }
                     ) {
-                        val radius = size.minDimension / 2f
+                        val radius = minOf(size.width, size.height).toFloat() / 2f
                         val center = Offset(size.width / 2f, size.height / 2f)
 
                         drawCircle(
