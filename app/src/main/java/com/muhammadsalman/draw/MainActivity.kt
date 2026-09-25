@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.muhammadsalman.draw.model.Stroke
 import com.muhammadsalman.draw.ui.BoardCanvas
 import com.muhammadsalman.draw.ui.BottomTools
 import com.muhammadsalman.draw.ui.ToolMode
@@ -63,11 +64,14 @@ fun DrawApp() {
         )
     }
 
+    // Strokes
+    val strokes = remember { mutableStateListOf<Stroke>() }
+
     // Tools state
     var toolsVisible by remember { mutableStateOf(false) }
-    var toolMode by remember { mutableStateOf(ToolMode.Brush) }
-    var brushSize by remember { mutableFloatStateOf(12f) }
-    var eraserSize by remember { mutableFloatStateOf(24f) }
+    var toolMode by remember { mutableStateOf(ToolMode.None) }
+    var brushSizeDp by remember { mutableFloatStateOf(12f) }
+    var eraserSizeDp by remember { mutableFloatStateOf(24f) }
     var brushColor by remember { mutableStateOf(Color(0xFF111827)) }
 
     val brushColors = remember {
@@ -80,6 +84,10 @@ fun DrawApp() {
             null
         )
     }
+
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val brushSizePx = with(density) { brushSizeDp.dp.toPx() }
+    val eraserSizePx = with(density) { eraserSizeDp.dp.toPx() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -101,6 +109,13 @@ fun DrawApp() {
                 boardColor = boardColor,
                 gridEnabled = gridEnabled,
                 gridSize = gridSize,
+                strokes = strokes,
+                toolMode = toolMode,
+                brushColor = brushColor,
+                brushSizePx = brushSizePx,
+                eraserSizePx = eraserSizePx,
+                isLocked = isLocked,
+                onStrokeComplete = { strokes.add(it) },
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
@@ -110,10 +125,10 @@ fun DrawApp() {
                 visible = toolsVisible,
                 toolMode = toolMode,
                 onToolModeChange = { toolMode = it },
-                brushSize = brushSize,
-                onBrushSizeChange = { brushSize = it },
-                eraserSize = eraserSize,
-                onEraserSizeChange = { eraserSize = it },
+                brushSize = brushSizeDp,
+                onBrushSizeChange = { brushSizeDp = it },
+                eraserSize = eraserSizeDp,
+                onEraserSizeChange = { eraserSizeDp = it },
                 brushColors = brushColors,
                 selectedBrushColor = brushColor,
                 onBrushColorSelect = { brushColor = it },
@@ -122,14 +137,13 @@ fun DrawApp() {
             )
         }
 
-        // Bottom-center tools toggle FAB
         if (toolsVisible) {
             SmallFloatingActionButton(
                 onClick = { toolsVisible = false },
                 shape = CircleShape,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 200.dp)
+                    .padding(bottom = 210.dp)
             ) {
                 Icon(Icons.Default.Close, contentDescription = "Close tools")
             }

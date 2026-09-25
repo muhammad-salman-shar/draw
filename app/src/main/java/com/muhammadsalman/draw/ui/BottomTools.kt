@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-enum class ToolMode { Brush, Eraser }
+enum class ToolMode { None, Brush, Eraser }
 
 @Composable
 fun BottomTools(
@@ -60,7 +60,7 @@ fun BottomTools(
             ) {
                 FilterChip(
                     selected = toolMode == ToolMode.Brush,
-                    onClick = { onToolModeChange(ToolMode.Brush) },
+                    onClick = { onToolModeChange(if (toolMode == ToolMode.Brush) ToolMode.None else ToolMode.Brush) },
                     label = { Text("Brush") },
                     leadingIcon = {
                         Icon(Icons.Default.Brush, contentDescription = null)
@@ -68,7 +68,7 @@ fun BottomTools(
                 )
                 FilterChip(
                     selected = toolMode == ToolMode.Eraser,
-                    onClick = { onToolModeChange(ToolMode.Eraser) },
+                    onClick = { onToolModeChange(if (toolMode == ToolMode.Eraser) ToolMode.None else ToolMode.Eraser) },
                     label = { Text("Eraser") },
                     leadingIcon = {
                         Icon(Icons.Default.Clear, contentDescription = null)
