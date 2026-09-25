@@ -4,8 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -13,9 +22,13 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.muhammadsalman.draw.ui.BoardCanvas
+import com.muhammadsalman.draw.ui.BottomTools
+import com.muhammadsalman.draw.ui.ToolMode
 import com.muhammadsalman.draw.ui.TopBar
 import com.muhammadsalman.draw.ui.theme.DrawTheme
 
@@ -33,43 +46,103 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun DrawApp() {
+    // Board state
     var gridEnabled by remember { mutableStateOf(true) }
     var gridSize by remember { mutableFloatStateOf(40f) }
     var isLocked by remember { mutableStateOf(false) }
     var boardColor by remember { mutableStateOf(Color.White) }
 
-    // 3 preset + 3 custom slots (null = empty, "+")
     val boardColors = remember {
         mutableStateListOf<Color?>(
-            Color(0xFFEF4444), // red
-            Color(0xFF3B82F6), // blue
-            Color(0xFF111827), // black
+            Color(0xFFEF4444),
+            Color(0xFF3B82F6),
+            Color(0xFF111827),
             null,
             null,
             null
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopBar(
-            gridEnabled = gridEnabled,
-            onGridToggle = { gridEnabled = it },
-            gridSize = gridSize,
-            onGridSizeChange = { gridSize = it },
-            isLocked = isLocked,
-            onLockToggle = { isLocked = it },
-            boardColors = boardColors,
-            selectedBoardColor = boardColor,
-            onBoardColorSelect = { boardColor = it }
-        )
+    // Tools state
+    var toolsVisible by remember { mutableStateOf(false) }
+    var toolMode by remember { mutableStateOf(ToolMode.Brush) }
+    var brushSize by remember { mutableFloatStateOf(12f) }
+    var eraserSize by remember { mutableFloatStateOf(24f) }
+    var brushColor by remember { mutableStateOf(Color(0xFF111827)) }
 
-        BoardCanvas(
-            boardColor = boardColor,
-            gridEnabled = gridEnabled,
-            gridSize = gridSize,
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f)
+    val brushColors = remember {
+        mutableStateListOf<Color?>(
+            Color(0xFF111827),
+            Color(0xFFEF4444),
+            Color(0xFFFFFFFF),
+            null,
+            null,
+            null
         )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopBar(
+                gridEnabled = gridEnabled,
+                onGridToggle = { gridEnabled = it },
+                gridSize = gridSize,
+                onGridSizeChange = { gridSize = it },
+                isLocked = isLocked,
+                onLockToggle = { isLocked = it },
+                boardColors = boardColors,
+                selectedBoardColor = boardColor,
+                onBoardColorSelect = { boardColor = it },
+                onBoardColorEdit = { idx, c -> boardColors[idx] = c },
+                onBoardColorAdd = { idx, c -> boardColors[idx] = c }
+            )
+
+            BoardCanvas(
+                boardColor = boardColor,
+                gridEnabled = gridEnabled,
+                gridSize = gridSize,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            )
+
+            BottomTools(
+                visible = toolsVisible,
+                toolMode = toolMode,
+                onToolModeChange = { toolMode = it },
+                brushSize = brushSize,
+                onBrushSizeChange = { brushSize = it },
+                eraserSize = eraserSize,
+                onEraserSizeChange = { eraserSize = it },
+                brushColors = brushColors,
+                selectedBrushColor = brushColor,
+                onBrushColorSelect = { brushColor = it },
+                onBrushColorEdit = { idx, c -> brushColors[idx] = c },
+                onBrushColorAdd = { idx, c -> brushColors[idx] = c }
+            )
+        }
+
+        // Bottom-center tools toggle FAB
+        if (toolsVisible) {
+            SmallFloatingActionButton(
+                onClick = { toolsVisible = false },
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 200.dp)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Close tools")
+            }
+        } else {
+            FloatingActionButton(
+                onClick = { toolsVisible = true },
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp)
+            ) {
+                Icon(Icons.Default.Build, contentDescription = "Tools")
+            }
+        }
     }
 }
