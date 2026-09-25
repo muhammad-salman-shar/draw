@@ -116,6 +116,10 @@ fun DrawApp() {
                 eraserSizePx = eraserSizePx,
                 isLocked = isLocked,
                 onStrokeComplete = { strokes.add(it) },
+                onErase = { newList ->
+                    strokes.clear()
+                    strokes.addAll(newList)
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
