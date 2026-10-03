@@ -1,7 +1,6 @@
 package com.muhammadsalman.draw.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -13,8 +12,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke as DrawStroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.muhammadsalman.draw.model.Stroke
@@ -31,7 +35,6 @@ fun BoardCanvas(
     eraserSizePx: Float,
     isLocked: Boolean,
     onStrokeComplete: (Stroke) -> Unit,
-    onErase: (List<Stroke>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var currentPoints by remember { mutableStateOf<List<Offset>>(emptyList()) }
@@ -41,58 +44,11 @@ fun BoardCanvas(
 
     val drawingEnabled = !isLocked && toolMode != ToolMode.None
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(boardColor)
-            .then(
-                if (drawingEnabled) {
-                    Modifier.pointerInput(toolMode, brushColor, brushSizePx, eraserSizePx) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            currentIsEraser = toolMode == ToolMode.Eraser
-                            currentColor = if (currentIsEraser) Color.Transparent else brushColor
-                            currentWidth = if (currentIsEraser) eraserSizePx else brushSizePx
-                            currentPoints = listOf(down.position)
-                            down.consume()
+    Box(modifier = modifier.fillMaxSize()) {
 
-                            val pointerId = down.id
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == pointerId }
-                                if (change == null || !change.pressed) break
-                                currentPoints = currentPoints + change.position
-                                change.consume()
-                            }
-
-                            if (currentPoints.isNotEmpty()) {
-                                if (currentIsEraser) {
-                                    val eraserStroke = Stroke(
-                                        points = currentPoints,
-                                        color = Color.Transparent,
-                                        widthPx = currentWidth,
-                                        isEraser = true
-                                    )
-                                    onErase(applyEraser(strokes, eraserStroke))
-                                } else {
-                                    onStrokeComplete(
-                                        Stroke(
-                                            points = currentPoints,
-                                            color = currentColor,
-                                            widthPx = currentWidth,
-                                            isEraser = false
-                                        )
-                                    )
-                                }
-                            }
-                            currentPoints = emptyList()
-                        }
-                    }
-                } else Modifier
-            )
-    ) {
+        // Layer 1: Board color + grid (NEVER erased)
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // 1. Grid
+            drawRect(color = boardColor, size = size)
             if (gridEnabled) {
                 val step = gridSize
                 if (step > 0f) {
@@ -110,26 +66,68 @@ fun BoardCanvas(
                     }
                 }
             }
+        }
 
-            // 2. Only brush strokes (eraser strokes never stored)
-            strokes.forEach { stroke ->
-                if (!stroke.isEraser) drawOneStroke(stroke)
-            }
+        // Layer 2: Strokes (offscreen, supports BlendMode.Clear)
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .then(
+                    if (drawingEnabled) {
+                        Modifier.pointerInput(toolMode, brushColor, brushSizePx, eraserSizePx) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                currentIsEraser = toolMode == ToolMode.Eraser
+                                currentColor = brushColor
+                                currentWidth = if (currentIsEraser) eraserSizePx else brushSizePx
+                                currentPoints = listOf(down.position)
+                                down.consume()
 
-            // 3. Live brush preview
-            if (currentPoints.isNotEmpty() && !currentIsEraser) {
-                drawOneStroke(
-                    Stroke(currentPoints, currentColor, currentWidth, false)
+                                val pointerId = down.id
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == pointerId }
+                                    if (change == null || !change.pressed) break
+                                    currentPoints = currentPoints + change.position
+                                    change.consume()
+                                }
+
+                                if (currentPoints.isNotEmpty()) {
+                                    onStrokeComplete(
+                                        Stroke(
+                                            points = currentPoints,
+                                            color = currentColor,
+                                            widthPx = currentWidth,
+                                            isEraser = currentIsEraser
+                                        )
+                                    )
+                                }
+                                currentPoints = emptyList()
+                            }
+                        }
+                    } else Modifier
                 )
+        ) {
+            strokes.forEach { s ->
+                if (s.isEraser) drawEraserStroke(s) else drawBrushStroke(s)
             }
+            if (currentPoints.isNotEmpty()) {
+                val live = Stroke(currentPoints, currentColor, currentWidth, currentIsEraser)
+                if (currentIsEraser) drawEraserStroke(live) else drawBrushStroke(live)
+            }
+        }
 
-            // 4. Eraser cursor preview (grey translucent dots)
-            if (currentPoints.isNotEmpty() && currentIsEraser) {
+        // Layer 3: Red translucent eraser cursor overlay
+        if (currentIsEraser && currentPoints.isNotEmpty()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeStyle = DrawStroke(width = 2.dp.toPx())
                 currentPoints.forEach { p ->
                     drawCircle(
-                        color = Color(0x33FF0000),
+                        color = Color(0x99FF0000),
                         radius = currentWidth / 2f,
-                        center = p
+                        center = p,
+                        style = strokeStyle
                     )
                 }
             }
@@ -137,57 +135,10 @@ fun BoardCanvas(
     }
 }
 
-/**
- * Destructive erase: eraser stroke ke under aane wale brush stroke points hataata hai.
- * Jo points bach jaate hain, unhe chhote chhote segments mein todh ke naye strokes banata hai.
- * Grid / board color ko touch nahi karta — sirf brush strokes ki geometry modify karta hai.
- */
-private fun applyEraser(strokes: List<Stroke>, eraser: Stroke): List<Stroke> {
-    val eraserRadius = eraser.widthPx / 2f
-    val result = mutableListOf<Stroke>()
-    strokes.forEach { stroke ->
-        if (stroke.isEraser) return@forEach
-        val brushRadius = stroke.widthPx / 2f
-        val threshold = eraserRadius + brushRadius
-        val thresholdSq = threshold * threshold
-
-        val segments = mutableListOf<MutableList<Offset>>()
-        var current = mutableListOf<Offset>()
-        stroke.points.forEach { p ->
-            val hit = eraser.points.any { ep ->
-                val dx = p.x - ep.x
-                val dy = p.y - ep.y
-                dx * dx + dy * dy <= thresholdSq
-            }
-            if (hit) {
-                if (current.isNotEmpty()) {
-                    segments.add(current)
-                    current = mutableListOf()
-                }
-            } else {
-                current.add(p)
-            }
-        }
-        if (current.isNotEmpty()) segments.add(current)
-
-        segments.forEach { seg ->
-            if (seg.isNotEmpty()) {
-                result.add(stroke.copy(points = seg.toList()))
-            }
-        }
-    }
-    return result
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOneStroke(stroke: Stroke) {
+private fun DrawScope.drawBrushStroke(stroke: Stroke) {
     if (stroke.points.isEmpty()) return
-    val cap = StrokeCap.Round
     if (stroke.points.size == 1) {
-        drawCircle(
-            color = stroke.color,
-            radius = stroke.widthPx / 2f,
-            center = stroke.points[0]
-        )
+        drawCircle(color = stroke.color, radius = stroke.widthPx / 2f, center = stroke.points[0])
         return
     }
     for (i in 0 until stroke.points.size - 1) {
@@ -196,7 +147,30 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOneStroke(strok
             start = stroke.points[i],
             end = stroke.points[i + 1],
             strokeWidth = stroke.widthPx,
-            cap = cap
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+private fun DrawScope.drawEraserStroke(stroke: Stroke) {
+    if (stroke.points.isEmpty()) return
+    if (stroke.points.size == 1) {
+        drawCircle(
+            color = Color.Black,
+            radius = stroke.widthPx / 2f,
+            center = stroke.points[0],
+            blendMode = BlendMode.Clear
+        )
+        return
+    }
+    for (i in 0 until stroke.points.size - 1) {
+        drawLine(
+            color = Color.Black,
+            start = stroke.points[i],
+            end = stroke.points[i + 1],
+            strokeWidth = stroke.widthPx,
+            cap = StrokeCap.Round,
+            blendMode = BlendMode.Clear
         )
     }
 }
